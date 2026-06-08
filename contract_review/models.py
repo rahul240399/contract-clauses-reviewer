@@ -1,14 +1,16 @@
 """Core data contracts that flow between pipeline stages.
 
-These dataclasses are the spine of the workflow: each stage is a function from
-one contract to the next (segment -> match -> assess -> verify -> report).
-Kept stdlib-only on purpose so the data shapes stay framework-independent.
+These Pydantic v2 models are the spine of the workflow: each stage is a function
+from one contract to the next (segment -> match -> assess -> verify -> report).
+Pydantic gives validation at boundaries, JSON (de)serialization for the API,
+persistence, and evals, and schema generation we reuse for the assess tool.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from enum import Enum
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Verdict(str, Enum):
@@ -23,28 +25,30 @@ class Verdict(str, Enum):
     NOT_MENTIONED = "NotMentioned"
 
 
-@dataclass(frozen=True)
-class Span:
+class Span(BaseModel):
     """A contiguous clause-sized unit of a document (a sentence or list item)."""
 
+    model_config = ConfigDict(frozen=True)
+
     id: str  # stable identifier, e.g. "s42"
-    start: int  # character offset into Document.text, inclusive
+    start: int = Field(ge=0)  # character offset into Document.text, inclusive
     end: int  # character offset into Document.text, exclusive
     text: str
 
-    def __post_init__(self) -> None:
-        if self.start < 0 or self.end < self.start:
+    @model_validator(mode="after")
+    def _check_offsets(self) -> Span:
+        if self.end < self.start:
             raise ValueError(f"invalid span offsets: [{self.start}, {self.end})")
+        return self
 
 
-@dataclass
-class Document:
+class Document(BaseModel):
     """A contract: full text plus its segmentation into spans."""
 
     id: str
     source_name: str
     text: str
-    spans: list[Span] = field(default_factory=list)
+    spans: list[Span] = Field(default_factory=list)
 
     def span_by_id(self, span_id: str) -> Span | None:
         for span in self.spans:
@@ -53,16 +57,16 @@ class Document:
         return None
 
 
-@dataclass(frozen=True)
-class Rule:
-    """One playbook requirement.
+class Rule(BaseModel):
+    """One playbook requirement (a rubric criterion).
 
     `statement` is the hypothesis tested against the contract. `expected_disposition`
     is the reviewer's desired verdict; a deviation is any actual verdict that
     differs from it. The expected disposition is what turns a topic-checker into a
-    review tool — without it we can report what a contract says but not whether
-    that is a problem.
+    review tool.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     id: str
     name: str
@@ -70,13 +74,13 @@ class Rule:
     expected_disposition: Verdict
 
 
-@dataclass(frozen=True)
-class Playbook:
-    """A named, ordered set of rules.
+class Playbook(BaseModel):
+    """A named, ordered set of rules (a rubric).
 
-    A swappable artifact, deliberately decoupled from any dataset: the v1 content
-    happens to be ContractNLI's 17 hypotheses, but a user can supply their own.
+    A swappable artifact, deliberately decoupled from any dataset.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     id: str
     name: str
@@ -92,14 +96,11 @@ class Playbook:
         return None
 
 
-@dataclass
-class RetrievedContext:
+class RetrievedContext(BaseModel):
     """Output of the match stage: where in *this* document a rule is relevant.
 
     An abstraction over the retrieve-vs-long-context decision. Downstream stages
-    only see candidate spans plus the text block to reason over — never how that
-    context was gathered — so the retrieval strategy can change without touching
-    the assess stage.
+    only see candidate spans plus the text block to reason over.
     """
 
     rule_id: str
@@ -107,18 +108,16 @@ class RetrievedContext:
     context_text: str
 
 
-@dataclass
-class Assessment:
+class Assessment(BaseModel):
     """Output of the (agentic) assess stage: a grounded verdict for one rule."""
 
     rule_id: str
     verdict: Verdict
-    evidence_span_ids: list[str]
-    rationale: str
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    rationale: str = ""
 
 
-@dataclass
-class VerifiedAssessment:
+class VerifiedAssessment(BaseModel):
     """An assessment after the verify/reflect loop has accepted or repaired it."""
 
     assessment: Assessment
@@ -127,8 +126,7 @@ class VerifiedAssessment:
     notes: str = ""
 
 
-@dataclass
-class Finding:
+class Finding(BaseModel):
     """A single per-rule result in the final report."""
 
     rule_id: str
@@ -136,18 +134,17 @@ class Finding:
     expected: Verdict
     actual: Verdict
     is_deviation: bool
-    evidence_span_ids: list[str]
-    rationale: str
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    rationale: str = ""
     suggested_redline: str | None = None
 
 
-@dataclass
-class Report:
+class Report(BaseModel):
     """The deliverable handed to a human for sign-off."""
 
     document_id: str
     playbook_id: str
-    findings: list[Finding]
+    findings: list[Finding] = Field(default_factory=list)
     deviation_score: float  # fraction of rules that deviate, in [0, 1]
     summary: str = ""
 
