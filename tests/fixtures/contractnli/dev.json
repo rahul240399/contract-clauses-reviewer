@@ -1,0 +1,25 @@
+{
+  "documents": [
+    {
+      "id": 1,
+      "file_name": "sample.txt",
+      "text": "No reverse engineering. Obligations survive termination.",
+      "document_type": "sec-text",
+      "spans": [[0, 23], [24, 56]],
+      "annotation_sets": [
+        {
+          "annotations": {
+            "nda-11": {"choice": "Entailment", "spans": [0]},
+            "nda-19": {"choice": "Entailment", "spans": [1]},
+            "nda-7": {"choice": "NotMentioned", "spans": []}
+          }
+        }
+      ]
+    }
+  ],
+  "labels": {
+    "nda-11": {"short_description": "No reverse engineering", "hypothesis": "h11"},
+    "nda-19": {"short_description": "Survival of obligations", "hypothesis": "h19"},
+    "nda-7": {"short_description": "Sharing with third-parties", "hypothesis": "h7"}
+  }
+}
