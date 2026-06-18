@@ -1,8 +1,9 @@
 """Runtime configuration via environment variables (12-factor).
 
-Single source of truth for the model, the verify/assess retry budget, and the
-API key. No secrets are hard-coded; they are read from the environment (or a
-local .env file). Settings are validated by pydantic-settings at load time.
+The reasoning model is any OpenAI-compatible endpoint: a local Ollama server
+(default), vLLM, LM Studio, llama.cpp, or a hosted open-model API. No paid
+service is required; defaults target a local Ollama install running an
+open-source model.
 """
 
 from __future__ import annotations
@@ -14,14 +15,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Read straight from ANTHROPIC_API_KEY (the SDK's conventional name).
-    anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
+    # OpenAI-compatible endpoint. Ollama's default is http://localhost:11434/v1.
+    llm_base_url: str = Field(
+        default="http://localhost:11434/v1", validation_alias="LLM_BASE_URL"
+    )
+    # Open-source model name as the server knows it (e.g. an Ollama tag).
+    llm_model: str = Field(default="qwen2.5:7b", validation_alias="LLM_MODEL")
+    # Most local servers ignore the key, but the field is often required to be non-empty.
+    llm_api_key: str = Field(default="not-needed", validation_alias="LLM_API_KEY")
+    request_timeout_s: float = Field(default=120.0, validation_alias="LLM_TIMEOUT_S")
 
-    # Reasoning model for the assess/verify stages; override via CONTRACT_REVIEW_MODEL.
-    model: str = Field(default="claude-sonnet-4-6", validation_alias="CONTRACT_REVIEW_MODEL")
-    # Extended-thinking budget for the assess "think" step.
-    max_thinking_tokens: int = Field(
-        default=4000, validation_alias="CONTRACT_REVIEW_MAX_THINKING_TOKENS"
+    # Token budget for the assess "think" (reasoning) step.
+    max_reasoning_tokens: int = Field(
+        default=1024, validation_alias="CONTRACT_REVIEW_MAX_REASONING_TOKENS"
     )
     # How many times verify may bounce a failing assessment back to assess.
     max_assess_attempts: int = Field(
@@ -29,12 +35,8 @@ class Settings(BaseSettings):
     )
     # Cap on concurrent per-rule assess calls.
     assess_concurrency: int = Field(
-        default=8, validation_alias="CONTRACT_REVIEW_ASSESS_CONCURRENCY"
+        default=4, validation_alias="CONTRACT_REVIEW_ASSESS_CONCURRENCY"
     )
-
-    @property
-    def has_api_key(self) -> bool:
-        return bool(self.anthropic_api_key)
 
 
 def load_settings() -> Settings:

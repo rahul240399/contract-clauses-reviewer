@@ -7,7 +7,8 @@ NotMentioned plus the exact supporting span), verifies and retries
 low-confidence verdicts, then drafts redlines and a deviation score for a human
 to sign off.
 
-Built from scratch on the Anthropic SDK — no agent framework.
+Built from scratch against an open-source LLM (via any OpenAI-compatible
+endpoint, e.g. a local Ollama server) — no agent framework, no paid API.
 
 ## Workflow
 
@@ -36,7 +37,15 @@ directory.
 ## Requirements
 
 - Python 3.11+
-- `ANTHROPIC_API_KEY` in the environment (needed by the assess/verify stages)
+- An OpenAI-compatible LLM endpoint for the assess/verify stages. The default
+  targets a local [Ollama](https://ollama.com) server:
+
+      ollama pull qwen2.5:7b      # or llama3.1:8b; bigger = better if you can
+
+  Configure via env vars (`LLM_BASE_URL`, `LLM_MODEL`); see `.env` and
+  `contract_review/config.py`. No paid API and no key are required for local use.
+  The core can also run against the built-in `FakeLLM` for development/tests with
+  no model at all.
 
 ## Install
 

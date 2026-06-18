@@ -44,16 +44,17 @@ report(playbook, [va...])                    # expected vs actual -> deviations,
 
 ## Assess stage (the core)
 
-Two-step, because the Anthropic API forbids extended thinking together with
-*forced* tool use:
+Two-step, which keeps reasoning and structure separate - especially valuable for
+smaller open-source models that struggle to reason and format at once:
 
-1. **Think** - extended thinking ON, no tools: free-form reasoning over the
-   rule and the ID-tagged spans (handles negation-by-exception).
-2. **Extract** - thinking OFF, forced `submit_assessment` tool call: turns that
-   reasoning into a structured `{verdict, evidence_span_ids, rationale}`.
+1. **Think** - a free-form completion: reasoning over the rule and the ID-tagged
+   spans (handles negation-by-exception).
+2. **Extract** - a completion that forces the `submit_assessment` tool call,
+   turning that reasoning into a structured `{verdict, evidence_span_ids,
+   rationale}`.
 
 Evidence is cited by span id (never quoted text) so grounding is mechanically
-verifiable. The document is prompt-cached; rules vary per call.
+verifiable.
 
 ## Module layout (ports and adapters)
 
@@ -68,7 +69,7 @@ contract_review/
   ports.py             # interfaces: LLM, DocumentSource, ReviewRepository
   pipeline.py          # orchestration over the ports
   stages/              # segment, match, assess, verify, report (pure domain)
-  llm/                 # Anthropic adapter implementing the LLM port
+  llm/                 # LLM-port adapters: OpenAI-compatible (open models) + FakeLLM
   datasets/            # ContractNLI / PDF adapters implementing DocumentSource
   playbook/            # rubric artifacts + loader
   storage/             # SQLite adapter implementing ReviewRepository
@@ -79,13 +80,14 @@ evaluation/            # oracle + metrics + harness (ContractNLI gold)
 
 ## Concurrency and caching
 
-The 17 per-rule assessments are independent and run concurrently (async client +
-semaphore). The contract is prompt-cached so calls 2..n pay a fraction of the
-input cost.
+The 17 per-rule assessments are independent and run concurrently (bounded by a
+semaphore). With a local model the cost is compute/latency rather than per-token
+billing, so concurrency is the main throughput lever.
 
 ## Dependencies
 
-Used: `anthropic` (reasoning core), `pydantic` + `pydantic-settings` (models,
+Used: `httpx` (calls an OpenAI-compatible LLM endpoint directly - open models via
+Ollama/vLLM/etc., no vendor SDK), `pydantic` + `pydantic-settings` (models,
 validation, config), `fastapi` + `uvicorn` (service), `pyyaml` (playbook),
 SQLite via the stdlib (persistence), `pytest` (tests).
 
