@@ -1,16 +1,71 @@
 """End-to-end orchestration of the review workflow.
 
-Status: stub. Wires the stages together and runs the verify -> assess retry loop:
+    for rule in playbook:
+        match -> assess -> verify ; re-assess while checks fail (retry budget)
+    build_report(...)
 
-    segment -> for each rule: match -> assess -> verify (retry) -> report
-
-Implemented once the individual stages land.
+Runs against any LLM-port implementation (FakeLLM for tests, OpenAICompatibleLLM
+for real models). Synchronous for v1; per-rule concurrency can be layered on
+later since the rules are independent.
 """
 
 from __future__ import annotations
 
-from .models import Document, Playbook, Report
+from .config import Settings, load_settings
+from .models import (
+    Assessment,
+    Document,
+    Playbook,
+    Report,
+    Rule,
+    VerifiedAssessment,
+    Verdict,
+)
+from .ports import LLM
+from .stages.assess import assess
+from .stages.match import match
+from .stages.report import build_report
+from .stages.verify import verify
 
 
-def review(document: Document, playbook: Playbook) -> Report:
-    raise NotImplementedError("pipeline.review: wired in a later step")
+def review(
+    document: Document,
+    playbook: Playbook,
+    llm: LLM,
+    *,
+    settings: Settings | None = None,
+) -> Report:
+    settings = settings or load_settings()
+    verified = [
+        _assess_with_retries(rule, document, llm, settings) for rule in playbook.rules
+    ]
+    return build_report(playbook, verified, document_id=document.id)
+
+
+def _assess_with_retries(
+    rule: Rule, document: Document, llm: LLM, settings: Settings
+) -> VerifiedAssessment:
+    context = match(document, rule)
+    last: VerifiedAssessment | None = None
+    for attempt in range(1, settings.max_assess_attempts + 1):
+        try:
+            assessment = assess(
+                rule, context, llm, max_reasoning_tokens=settings.max_reasoning_tokens
+            )
+        except ValueError as exc:
+            last = VerifiedAssessment(
+                assessment=Assessment(
+                    rule_id=rule.id, verdict=Verdict.NOT_MENTIONED,
+                    evidence_span_ids=[], rationale=f"assess error: {exc}",
+                ),
+                checks_passed=False,
+                attempts=attempt,
+                notes=str(exc),
+            )
+            continue
+        candidate = verify(assessment, document, attempts=attempt)
+        if candidate.checks_passed:
+            return candidate
+        last = candidate
+    assert last is not None
+    return last
