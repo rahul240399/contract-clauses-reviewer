@@ -51,7 +51,20 @@ directory.
 
     pip install -e .
 
-## Usage (coming as stages land)
+## Usage
 
-    contract-review review <contract.txt> --playbook nda_contractnli
+CLI:
+
+    contract-review review --file my_nda.txt --playbook nda_contractnli
+    contract-review review --contractnli-id 3 --split dev
     contract-review eval --split dev --n 10
+    contract-review review --file my_nda.txt --fake   # offline, no model
+
+HTTP service (the deployable surface):
+
+    uvicorn contract_review.api.app:app --reload      # or: docker build/run
+    curl -s localhost:8000/reviews -H 'content-type: application/json' \
+      -d '{"text": "...contract text...", "use_fake": true}'
+
+Endpoints: `POST /reviews`, `GET /reviews`, `GET /reviews/{id}`,
+`POST /reviews/{id}/signoff`, `GET /playbooks/{name}`, `GET /health`.

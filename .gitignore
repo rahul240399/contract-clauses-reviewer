@@ -7,6 +7,9 @@ data/
 .env
 .env.*
 
+# Local SQLite review store
+*.db
+
 # Python
 __pycache__/
 *.py[cod]
