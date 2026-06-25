@@ -4,7 +4,7 @@
         match -> assess -> verify ; re-assess while checks fail (retry budget)
     build_report(...)
 
-Runs against any LLM-port implementation (FakeLLM for tests, OpenAICompatibleLLM
+Runs against any LLM-port implementation (ScriptedLLM for tests, OpenAICompatibleLLM
 for real models). Rules are independent, so they are assessed concurrently with a
 bounded thread pool (the per-rule work is I/O-bound model calls). The bound comes
 from settings.assess_concurrency; set it to 1 for fully sequential execution.

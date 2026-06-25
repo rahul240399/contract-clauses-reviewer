@@ -13,19 +13,19 @@ from typing import Callable
 ExtractFn = Callable[..., dict]
 
 
-class FakeLLM:
+class ScriptedLLM:
     def __init__(
         self,
         *,
         extract_fn: ExtractFn | None = None,
         default_extract: dict | None = None,
-        think_text: str = "(fake reasoning)",
+        think_text: str = "(scripted reasoning)",
     ) -> None:
         self._extract_fn = extract_fn
         self._default_extract = default_extract or {
             "verdict": "NotMentioned",
             "evidence_span_ids": [],
-            "rationale": "fake default",
+            "rationale": "scripted default",
         }
         self._think_text = think_text
         # The pipeline assesses rules concurrently, so guard the call log.

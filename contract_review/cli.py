@@ -1,10 +1,10 @@
 """Command-line entrypoint.
 
-  contract-review review --file contract.txt [--playbook nda_contractnli] [--fake]
-  contract-review review --contractnli-id 3 [--split dev] [--fake] [--save]
-  contract-review eval --split dev --n 5 [--fake]
+  contract-review review --file contract.txt [--playbook nda_contractnli] [--offline]
+  contract-review review --contractnli-id 3 [--split dev] [--offline] [--save]
+  contract-review eval --split dev --n 5 [--offline]
 
---fake uses the deterministic FakeLLM (no model/network); otherwise the
+--offline uses the deterministic ScriptedLLM (no model/network); otherwise the
 OpenAI-compatible adapter is used (a local Ollama server by default).
 """
 
@@ -15,15 +15,15 @@ import sys
 
 from .config import load_settings
 from .datasets.contractnli import load_documents
-from .llm import FakeLLM, OpenAICompatibleLLM
+from .llm import OpenAICompatibleLLM, ScriptedLLM
 from .models import Assessment, Document, Playbook, Report
 from .pipeline import review as run_pipeline
 from .playbook.loader import load_named
 from .stages.segment import segment
 
 
-def _build_llm(use_fake: bool, settings):
-    return FakeLLM() if use_fake else OpenAICompatibleLLM(settings)
+def _build_llm(offline: bool, settings):
+    return ScriptedLLM() if offline else OpenAICompatibleLLM(settings)
 
 
 def _load_document(args) -> Document:
@@ -60,7 +60,7 @@ def cmd_review(args) -> int:
     settings = load_settings()
     document = _load_document(args)
     playbook = load_named(args.playbook)
-    llm = _build_llm(args.fake, settings)
+    llm = _build_llm(args.offline, settings)
     report = run_pipeline(document, playbook, llm, settings=settings)
     print(format_report(report, playbook))
     if args.save:
@@ -79,7 +79,7 @@ def cmd_eval(args) -> int:
     playbook = load_named(args.playbook)
     documents = load_documents(args.split)[: args.n]
     gold = load_gold(args.split)
-    llm = _build_llm(args.fake, settings)
+    llm = _build_llm(args.offline, settings)
 
     pairs = []
     for document in documents:
@@ -116,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--contractnli-id", help="review a ContractNLI document by id")
     r.add_argument("--split", default="dev")
     r.add_argument("--playbook", default="nda_contractnli")
-    r.add_argument("--fake", action="store_true", help="use the FakeLLM (no model)")
+    r.add_argument("--offline", action="store_true", help="use the ScriptedLLM (no model)")
     r.add_argument("--save", action="store_true", help="persist the review")
     r.add_argument("--db", default="reviews.db")
     r.set_defaults(func=cmd_review)
@@ -125,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--split", default="dev")
     e.add_argument("--n", type=int, default=5)
     e.add_argument("--playbook", default="nda_contractnli")
-    e.add_argument("--fake", action="store_true")
+    e.add_argument("--offline", action="store_true")
     e.set_defaults(func=cmd_eval)
     return parser
 

@@ -8,7 +8,7 @@ redlines and a deviation score for a human to sign off.
 
 Built against an open-source LLM via any OpenAI-compatible endpoint (e.g. a
 local [Ollama](https://ollama.com) server) — no agent framework, no paid API.
-The core can also run fully offline against a built-in `FakeLLM`.
+The core can also run fully offline against a built-in `ScriptedLLM`.
 
 ## How it works
 
@@ -37,10 +37,10 @@ pytest -q
 
 # 4. Try it offline, no model required
 printf 'The obligations shall survive termination of this Agreement.' > nda.txt
-contract-review review --file nda.txt --fake
+contract-review review --file nda.txt --offline
 ```
 
-To run against a real model, start Ollama and pull a model, then drop `--fake`:
+To run against a real model, start Ollama and pull a model, then drop `--offline`:
 
 ```bash
 ollama pull qwen2.5:7b        # or set LLM_MODEL=qwen2.5:3b on low-RAM machines
@@ -53,7 +53,7 @@ contract-review review --file nda.txt
 contract-review review --file my_nda.txt                 # review a text contract
 contract-review review --contractnli-id 3 --split dev    # review a ContractNLI doc
 contract-review review --file my_nda.txt --save          # persist to SQLite
-contract-review review --file my_nda.txt --fake          # offline, no model
+contract-review review --file my_nda.txt --offline       # offline, no model
 contract-review eval   --split dev --n 10                # score against gold
 ```
 
@@ -62,7 +62,7 @@ contract-review eval   --split dev --n 10                # score against gold
 ```bash
 uvicorn contract_review.api.app:app --reload
 curl -s localhost:8000/reviews -H 'content-type: application/json' \
-  -d '{"text": "...contract text...", "use_fake": true}'
+  -d '{"text": "...contract text...", "offline": true}'
 ```
 
 Endpoints: `POST /reviews`, `GET /reviews`, `GET /reviews/{id}`,
