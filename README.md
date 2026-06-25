@@ -1,19 +1,19 @@
 # contract-clauses-reviewer
 
 Playbook-driven contract clause review. Given a contract and a playbook of
-rules, the tool segments the contract into clauses, assesses each rule against
-the contract with a **grounded verdict** (Entailment / Contradiction /
-NotMentioned plus the exact supporting span), verifies and retries
-low-confidence verdicts, then drafts redlines and a deviation score for a human
-to sign off.
+rules, the tool segments the contract into clauses, assesses each rule with a
+**grounded verdict** (Entailment / Contradiction / NotMentioned plus the exact
+supporting span), verifies and retries low-confidence verdicts, then drafts
+redlines and a deviation score for a human to sign off.
 
-Built from scratch against an open-source LLM (via any OpenAI-compatible
-endpoint, e.g. a local Ollama server) — no agent framework, no paid API.
+Built against an open-source LLM via any OpenAI-compatible endpoint (e.g. a
+local [Ollama](https://ollama.com) server) — no agent framework, no paid API.
+The core can also run fully offline against a built-in `FakeLLM`.
 
-## Workflow
+## How it works
 
-1. **Segment** — contract (PDF/text) → clause spans  *(deterministic)*
-2. **Match** — locate the spans relevant to each playbook rule  *(deterministic)*
+1. **Segment** — contract (text) → clause spans  *(deterministic)*
+2. **Match** — locate spans relevant to each playbook rule  *(deterministic)*
 3. **Assess** — grounded verdict per rule  *(reasoning)*
 4. **Verify & reflect** — re-run verdicts that fail checks  *(reasoning)*
 5. **Report** — deviations vs. playbook stance, redlines, score  *(deterministic)*
@@ -21,50 +21,82 @@ endpoint, e.g. a local Ollama server) — no agent framework, no paid API.
 
 The agent augments a reviewer; it never finalizes on its own.
 
-## Status
+## Quickstart
 
-Early development. Per-stage status lives in each module's docstring.
+Requires **Python 3.11+**.
 
-## Development dataset
+```bash
+# 1. Install (editable, with test deps)
+pip install -e ".[dev]"
 
-During development the reviewer is exercised against **ContractNLI**
-(Koreeda & Manning, *Findings of EMNLP 2021*) — 607 NDAs annotated with 17
-hypotheses and evidence spans — used here as an **evaluation oracle, not for
-training**. ContractNLI is released under CC BY 4.0. The dataset is **not**
-vendored in this repository; it is fetched locally into an ignored scratch
-directory.
+# 2. Configure the model endpoint
+cp .env.example .env          # defaults target local Ollama / qwen2.5:7b
 
-## Requirements
+# 3. Run the test suite (hermetic — no model or dataset needed)
+pytest -q
 
-- Python 3.11+
-- An OpenAI-compatible LLM endpoint for the assess/verify stages. The default
-  targets a local [Ollama](https://ollama.com) server:
+# 4. Try it offline, no model required
+printf 'The obligations shall survive termination of this Agreement.' > nda.txt
+contract-review review --file nda.txt --fake
+```
 
-      ollama pull qwen2.5:7b      # or llama3.1:8b; bigger = better if you can
+To run against a real model, start Ollama and pull a model, then drop `--fake`:
 
-  Configure via env vars (`LLM_BASE_URL`, `LLM_MODEL`); see `.env` and
-  `contract_review/config.py`. No paid API and no key are required for local use.
-  The core can also run against the built-in `FakeLLM` for development/tests with
-  no model at all.
+```bash
+ollama pull qwen2.5:7b        # or set LLM_MODEL=qwen2.5:3b on low-RAM machines
+contract-review review --file nda.txt
+```
 
-## Install
+## CLI
 
-    pip install -e .
+```bash
+contract-review review --file my_nda.txt                 # review a text contract
+contract-review review --contractnli-id 3 --split dev    # review a ContractNLI doc
+contract-review review --file my_nda.txt --save          # persist to SQLite
+contract-review review --file my_nda.txt --fake          # offline, no model
+contract-review eval   --split dev --n 10                # score against gold
+```
 
-## Usage
+## HTTP service
 
-CLI:
-
-    contract-review review --file my_nda.txt --playbook nda_contractnli
-    contract-review review --contractnli-id 3 --split dev
-    contract-review eval --split dev --n 10
-    contract-review review --file my_nda.txt --fake   # offline, no model
-
-HTTP service (the deployable surface):
-
-    uvicorn contract_review.api.app:app --reload      # or: docker build/run
-    curl -s localhost:8000/reviews -H 'content-type: application/json' \
-      -d '{"text": "...contract text...", "use_fake": true}'
+```bash
+uvicorn contract_review.api.app:app --reload
+curl -s localhost:8000/reviews -H 'content-type: application/json' \
+  -d '{"text": "...contract text...", "use_fake": true}'
+```
 
 Endpoints: `POST /reviews`, `GET /reviews`, `GET /reviews/{id}`,
 `POST /reviews/{id}/signoff`, `GET /playbooks/{name}`, `GET /health`.
+A `Dockerfile` is included for containerized deployment.
+
+## Configuration
+
+Settings are read from environment variables (or a `.env` file); see
+`.env.example` and `contract_review/config.py`. Key ones:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LLM_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible endpoint |
+| `LLM_MODEL` | `qwen2.5:7b` | Model name as the server knows it |
+| `LLM_API_KEY` | `not-needed` | Most local servers ignore this |
+
+No paid API or key is required for local use.
+
+## Evaluation dataset
+
+During development the reviewer is scored against **ContractNLI**
+(Koreeda & Manning, *Findings of EMNLP 2021*) — 607 NDAs annotated with 17
+hypotheses and evidence spans — used as an **evaluation oracle, not for
+training** (CC BY 4.0). The dataset is **not** vendored; fetch it locally into
+a git-ignored scratch directory:
+
+```bash
+bash scripts/fetch_contractnli.sh
+contract-review eval --split dev --n 20
+```
+
+`eval` reports verdict accuracy, verdict macro-F1, and evidence F1.
+
+## Status
+
+Active development; per-stage status lives in each module's docstring.
