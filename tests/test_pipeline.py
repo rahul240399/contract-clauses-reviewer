@@ -69,3 +69,45 @@ def test_pipeline_runs_end_to_end_with_fake_llm():
     nda11 = next(f for f in report.findings if f.rule_id == "nda-11")
     assert nda11.actual is Verdict.ENTAILMENT and not nda11.is_deviation
     assert 0.0 <= report.deviation_score <= 1.0
+
+
+# ---- concurrency ----
+
+def test_pipeline_assesses_rules_concurrently():
+    import threading
+    import time
+
+    doc = _doc()
+    pb = load_named("nda_contractnli")
+    lock = threading.Lock()
+    state = {"active": 0, "max_active": 0}
+
+    def responder(*, prompt, tool, tool_name):
+        with lock:
+            state["active"] += 1
+            state["max_active"] = max(state["max_active"], state["active"])
+        time.sleep(0.02)
+        with lock:
+            state["active"] -= 1
+        return {"verdict": "NotMentioned", "evidence_span_ids": [], "rationale": "x"}
+
+    settings = load_settings().model_copy(update={"assess_concurrency": 4})
+    report = review(doc, pb, FakeLLM(extract_fn=responder), settings=settings)
+    assert len(report.findings) == len(pb)
+    assert state["max_active"] >= 2  # rules were assessed in parallel
+
+
+def test_pipeline_preserves_rule_order_under_concurrency():
+    doc = _doc()
+    pb = load_named("nda_contractnli")
+    settings = load_settings().model_copy(update={"assess_concurrency": 8})
+    report = review(doc, pb, FakeLLM(), settings=settings)
+    assert [f.rule_id for f in report.findings] == [r.id for r in pb.rules]
+
+
+def test_pipeline_sequential_when_concurrency_is_one():
+    doc = _doc()
+    pb = load_named("nda_contractnli")
+    settings = load_settings().model_copy(update={"assess_concurrency": 1})
+    report = review(doc, pb, FakeLLM(), settings=settings)
+    assert [f.rule_id for f in report.findings] == [r.id for r in pb.rules]
