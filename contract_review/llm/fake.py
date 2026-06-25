@@ -7,6 +7,7 @@ answers), or rely on the default. Calls are recorded for assertions.
 
 from __future__ import annotations
 
+import threading
 from typing import Callable
 
 ExtractFn = Callable[..., dict]
@@ -27,14 +28,18 @@ class FakeLLM:
             "rationale": "fake default",
         }
         self._think_text = think_text
+        # The pipeline assesses rules concurrently, so guard the call log.
+        self._lock = threading.Lock()
         self.calls: list[tuple[str, str]] = []
 
     def think(self, *, system: str, prompt: str, max_thinking_tokens: int) -> str:
-        self.calls.append(("think", prompt))
+        with self._lock:
+            self.calls.append(("think", prompt))
         return self._think_text
 
     def extract(self, *, system: str, prompt: str, tool: dict, tool_name: str) -> dict:
-        self.calls.append(("extract", prompt))
+        with self._lock:
+            self.calls.append(("extract", prompt))
         if self._extract_fn is not None:
             return self._extract_fn(prompt=prompt, tool=tool, tool_name=tool_name)
         return dict(self._default_extract)

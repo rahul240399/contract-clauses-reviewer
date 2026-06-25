@@ -5,11 +5,14 @@
     build_report(...)
 
 Runs against any LLM-port implementation (FakeLLM for tests, OpenAICompatibleLLM
-for real models). Synchronous for v1; per-rule concurrency can be layered on
-later since the rules are independent.
+for real models). Rules are independent, so they are assessed concurrently with a
+bounded thread pool (the per-rule work is I/O-bound model calls). The bound comes
+from settings.assess_concurrency; set it to 1 for fully sequential execution.
 """
 
 from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
 
 from .config import Settings, load_settings
 from .models import (
@@ -36,9 +39,16 @@ def review(
     settings: Settings | None = None,
 ) -> Report:
     settings = settings or load_settings()
-    verified = [
-        _assess_with_retries(rule, document, llm, settings) for rule in playbook.rules
-    ]
+    rules = playbook.rules
+    workers = max(1, min(settings.assess_concurrency, len(rules) or 1))
+    if workers == 1:
+        verified = [_assess_with_retries(r, document, llm, settings) for r in rules]
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            # map preserves input order, so findings stay aligned with the playbook.
+            verified = list(
+                pool.map(lambda r: _assess_with_retries(r, document, llm, settings), rules)
+            )
     return build_report(playbook, verified, document_id=document.id)
 
 
