@@ -13,7 +13,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+pdf = ["pypdf>=4"]
+dev = ["pytest>=8.0", "pypdf>=4"]
 
 [project.scripts]
 contract-review = "contract_review.cli:main"

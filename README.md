@@ -12,7 +12,7 @@ The core can also run fully offline against a built-in `ScriptedLLM`.
 
 ## How it works
 
-1. **Segment** — contract (text) → clause spans  *(deterministic)*
+1. **Segment** — contract (text or PDF) → clause spans  *(deterministic)*
 2. **Match** — locate spans relevant to each playbook rule  *(deterministic)*
 3. **Assess** — grounded verdict per rule  *(reasoning)*
 4. **Verify & reflect** — re-run verdicts that fail checks  *(reasoning)*
@@ -26,8 +26,8 @@ The agent augments a reviewer; it never finalizes on its own.
 Requires **Python 3.11+**.
 
 ```bash
-# 1. Install (editable, with test deps)
-pip install -e ".[dev]"
+# 1. Install (editable, with test deps; add the `pdf` extra to review PDFs)
+pip install -e ".[dev]"        # or: pip install -e ".[dev,pdf]"
 
 # 2. Configure the model endpoint
 cp .env.example .env          # defaults target local Ollama / qwen2.5:7b
@@ -50,7 +50,7 @@ contract-review review --file nda.txt
 ## CLI
 
 ```bash
-contract-review review --file my_nda.txt                 # review a text contract
+contract-review review --file my_nda.txt                 # review a .txt or .pdf contract
 contract-review review --contractnli-id 3 --split dev    # review a ContractNLI doc
 contract-review review --file my_nda.txt --save          # persist to SQLite
 contract-review review --file my_nda.txt --offline       # offline, no model
