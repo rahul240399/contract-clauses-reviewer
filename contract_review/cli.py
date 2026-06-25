@@ -15,11 +15,11 @@ import sys
 
 from .config import load_settings
 from .datasets.contractnli import load_documents
+from .ingest import load_contract
 from .llm import OpenAICompatibleLLM, ScriptedLLM
 from .models import Assessment, Document, Playbook, Report
 from .pipeline import review as run_pipeline
 from .playbook.loader import load_named
-from .stages.segment import segment
 
 
 def _build_llm(offline: bool, settings):
@@ -28,8 +28,7 @@ def _build_llm(offline: bool, settings):
 
 def _load_document(args) -> Document:
     if args.file:
-        text = open(args.file, encoding="utf-8").read()
-        return segment(text, source_name=args.file, doc_id=args.file)
+        return load_contract(args.file)
     if args.contractnli_id is not None:
         for doc in load_documents(args.split):
             if doc.id == str(args.contractnli_id):
@@ -113,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     r = sub.add_parser("review", help="review one contract against a playbook")
-    r.add_argument("--file", help="path to a plain-text contract")
+    r.add_argument("--file", help="path to a contract (.txt or .pdf)")
     r.add_argument("--contractnli-id", help="review a ContractNLI document by id")
     r.add_argument("--split", default="dev")
     r.add_argument("--playbook", default="nda_contractnli")
