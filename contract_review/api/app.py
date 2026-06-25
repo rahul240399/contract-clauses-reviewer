@@ -3,6 +3,7 @@
 Endpoints:
   GET  /health
   POST /reviews                  run a review, persist it, return {review_id, report}
+  POST /reviews/upload           review an uploaded contract file (.txt or .pdf)
   GET  /reviews                  list review ids
   GET  /reviews/{id}             fetch a stored report
   POST /reviews/{id}/signoff     record human sign-off
@@ -15,11 +16,16 @@ so the API is usable (and testable) without a model.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+import os
+import tempfile
+from pathlib import Path
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from ..config import Settings, load_settings
 from ..datasets.contractnli import load_documents
+from ..ingest import load_contract
 from ..llm import OpenAICompatibleLLM, ScriptedLLM
 from ..models import Document, Report
 from ..pipeline import review as run_pipeline
@@ -52,6 +58,13 @@ def _load_document(req: ReviewRequest) -> Document:
     raise HTTPException(422, "provide either 'text' or 'contractnli_id'")
 
 
+def _load_playbook(name: str):
+    try:
+        return load_named(name)
+    except FileNotFoundError:
+        raise HTTPException(404, f"playbook {name!r} not found")
+
+
 def create_app(
     repo: ReviewRepository | None = None, settings: Settings | None = None
 ) -> FastAPI:
@@ -69,11 +82,34 @@ def create_app(
     @app.post("/reviews")
     def create_review(req: ReviewRequest) -> dict:
         document = _load_document(req)
-        try:
-            playbook = load_named(req.playbook)
-        except FileNotFoundError:
-            raise HTTPException(404, f"playbook {req.playbook!r} not found")
+        playbook = _load_playbook(req.playbook)
         report = run_pipeline(document, playbook, build_llm(req.offline), settings=settings)
+        review_id = repo.save(report)
+        return {"review_id": review_id, "report": report.model_dump()}
+
+    @app.post("/reviews/upload")
+    def create_review_from_file(
+        file: UploadFile = File(...),
+        playbook: str = Form("nda_contractnli"),
+        offline: bool = Form(False),
+    ) -> dict:
+        name = file.filename or "uploaded"
+        suffix = Path(name).suffix or ".txt"
+        # Persist to a temp file so the shared ingest path can dispatch by extension.
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(file.file.read())
+            tmp_path = tmp.name
+        try:
+            try:
+                document = load_contract(tmp_path, doc_id=name, source_name=name)
+            except RuntimeError as exc:  # PDF support not installed
+                raise HTTPException(415, str(exc))
+            except UnicodeDecodeError:
+                raise HTTPException(415, f"could not read {name!r} as text; upload a .txt or .pdf")
+        finally:
+            os.unlink(tmp_path)
+        pb = _load_playbook(playbook)
+        report = run_pipeline(document, pb, build_llm(offline), settings=settings)
         review_id = repo.save(report)
         return {"review_id": review_id, "report": report.model_dump()}
 
