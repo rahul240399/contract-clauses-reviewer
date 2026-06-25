@@ -69,7 +69,7 @@ contract_review/
   ports.py             # interfaces: LLM, DocumentSource, ReviewRepository
   pipeline.py          # orchestration over the ports
   stages/              # segment, match, assess, verify, report (pure domain)
-  llm/                 # LLM-port adapters: OpenAI-compatible (open models) + FakeLLM
+  llm/                 # LLM-port adapters: OpenAI-compatible (open models) + ScriptedLLM
   datasets/            # ContractNLI / PDF adapters implementing DocumentSource
   playbook/            # rubric artifacts + loader
   storage/             # SQLite adapter implementing ReviewRepository

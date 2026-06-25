@@ -18,7 +18,7 @@ def test_review_text_then_fetch_and_signoff(tmp_path):
 
     resp = client.post("/reviews", json={
         "text": "The Receiving Party shall not reverse engineer the product.",
-        "use_fake": True,
+        "offline": True,
     })
     assert resp.status_code == 200
     body = resp.json()
@@ -35,7 +35,7 @@ def test_review_text_then_fetch_and_signoff(tmp_path):
 
 
 def test_missing_input_is_422(tmp_path):
-    assert _client(tmp_path).post("/reviews", json={"use_fake": True}).status_code == 422
+    assert _client(tmp_path).post("/reviews", json={"offline": True}).status_code == 422
 
 
 def test_unknown_review_is_404(tmp_path):

@@ -1,6 +1,6 @@
 import pytest
 
-from contract_review.llm import FakeLLM
+from contract_review.llm import ScriptedLLM
 from contract_review.models import Document, RetrievedContext, Rule, Span, Verdict
 from contract_review.stages.assess import assess
 from contract_review.stages.match import match
@@ -26,7 +26,7 @@ def _rule():
 def test_assess_runs_two_steps_and_returns_grounded_verdict():
     doc, rule = _doc(), _rule()
     ctx = match(doc, rule)
-    llm = FakeLLM(default_extract={"verdict": "Entailment",
+    llm = ScriptedLLM(default_extract={"verdict": "Entailment",
                                    "evidence_span_ids": ["s0"],
                                    "rationale": "clause s0 forbids it"})
     result = assess(rule, ctx, llm)
@@ -39,7 +39,7 @@ def test_assess_runs_two_steps_and_returns_grounded_verdict():
 def test_not_mentioned_strips_evidence():
     doc, rule = _doc(), _rule()
     ctx = match(doc, rule)
-    llm = FakeLLM(default_extract={"verdict": "NotMentioned",
+    llm = ScriptedLLM(default_extract={"verdict": "NotMentioned",
                                    "evidence_span_ids": ["s0"],  # should be dropped
                                    "rationale": "silent"})
     result = assess(rule, ctx, llm)
@@ -50,6 +50,6 @@ def test_not_mentioned_strips_evidence():
 def test_invalid_verdict_raises():
     doc, rule = _doc(), _rule()
     ctx = match(doc, rule)
-    llm = FakeLLM(default_extract={"verdict": "Maybe", "evidence_span_ids": [], "rationale": ""})
+    llm = ScriptedLLM(default_extract={"verdict": "Maybe", "evidence_span_ids": [], "rationale": ""})
     with pytest.raises(ValueError, match="invalid verdict"):
         assess(rule, ctx, llm)

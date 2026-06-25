@@ -1,5 +1,5 @@
 from contract_review.config import load_settings
-from contract_review.llm import FakeLLM
+from contract_review.llm import ScriptedLLM
 from contract_review.models import Document, Span, Verdict
 from contract_review.pipeline import review
 from contract_review.playbook.loader import load_named
@@ -50,19 +50,19 @@ def test_report_marks_deviations_and_scores():
     assert report.findings[1].suggested_redline is None
 
 
-# ---- end-to-end with FakeLLM ----
+# ---- end-to-end with ScriptedLLM ----
 
-def test_pipeline_runs_end_to_end_with_fake_llm():
+def test_pipeline_runs_end_to_end_with_scripted_llm():
     doc = _doc()
     pb = load_named("nda_contractnli")
 
-    # FakeLLM that "entails" the reverse-engineering rule and is silent otherwise.
+    # ScriptedLLM that "entails" the reverse-engineering rule and is silent otherwise.
     def responder(*, prompt, tool, tool_name):
         if "reverse engineer" in prompt.lower():
             return {"verdict": "Entailment", "evidence_span_ids": ["s0"], "rationale": "s0"}
         return {"verdict": "NotMentioned", "evidence_span_ids": [], "rationale": "silent"}
 
-    report = review(doc, pb, FakeLLM(extract_fn=responder), settings=load_settings())
+    report = review(doc, pb, ScriptedLLM(extract_fn=responder), settings=load_settings())
     assert report.document_id == "1"
     assert len(report.findings) == len(pb)
     # nda-11 expected Entailment and we entailed it -> not a deviation
@@ -92,7 +92,7 @@ def test_pipeline_assesses_rules_concurrently():
         return {"verdict": "NotMentioned", "evidence_span_ids": [], "rationale": "x"}
 
     settings = load_settings().model_copy(update={"assess_concurrency": 4})
-    report = review(doc, pb, FakeLLM(extract_fn=responder), settings=settings)
+    report = review(doc, pb, ScriptedLLM(extract_fn=responder), settings=settings)
     assert len(report.findings) == len(pb)
     assert state["max_active"] >= 2  # rules were assessed in parallel
 
@@ -101,7 +101,7 @@ def test_pipeline_preserves_rule_order_under_concurrency():
     doc = _doc()
     pb = load_named("nda_contractnli")
     settings = load_settings().model_copy(update={"assess_concurrency": 8})
-    report = review(doc, pb, FakeLLM(), settings=settings)
+    report = review(doc, pb, ScriptedLLM(), settings=settings)
     assert [f.rule_id for f in report.findings] == [r.id for r in pb.rules]
 
 
@@ -109,5 +109,5 @@ def test_pipeline_sequential_when_concurrency_is_one():
     doc = _doc()
     pb = load_named("nda_contractnli")
     settings = load_settings().model_copy(update={"assess_concurrency": 1})
-    report = review(doc, pb, FakeLLM(), settings=settings)
+    report = review(doc, pb, ScriptedLLM(), settings=settings)
     assert [f.rule_id for f in report.findings] == [r.id for r in pb.rules]

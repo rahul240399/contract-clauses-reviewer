@@ -9,8 +9,8 @@ Endpoints:
   GET  /playbooks/{name}         inspect a rubric
 
 The service reuses the same pipeline, playbook loader, and repository as the CLI;
-nothing domain-specific lives here. `use_fake` runs the deterministic FakeLLM so
-the API is usable (and testable) without a model.
+nothing domain-specific lives here. `offline` runs the deterministic ScriptedLLM
+so the API is usable (and testable) without a model.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from ..config import Settings, load_settings
 from ..datasets.contractnli import load_documents
-from ..llm import FakeLLM, OpenAICompatibleLLM
+from ..llm import OpenAICompatibleLLM, ScriptedLLM
 from ..models import Document, Report
 from ..pipeline import review as run_pipeline
 from ..playbook.loader import load_named
@@ -34,7 +34,7 @@ class ReviewRequest(BaseModel):
     contractnli_id: str | None = None
     split: str = "dev"
     playbook: str = "nda_contractnli"
-    use_fake: bool = False
+    offline: bool = False
 
 
 class SignoffRequest(BaseModel):
@@ -59,8 +59,8 @@ def create_app(
     repo = repo or SQLiteReviewRepository("reviews.db")
     app = FastAPI(title="Contract Clause Reviewer")
 
-    def build_llm(use_fake: bool):
-        return FakeLLM() if use_fake else OpenAICompatibleLLM(settings)
+    def build_llm(offline: bool):
+        return ScriptedLLM() if offline else OpenAICompatibleLLM(settings)
 
     @app.get("/health")
     def health() -> dict:
@@ -73,7 +73,7 @@ def create_app(
             playbook = load_named(req.playbook)
         except FileNotFoundError:
             raise HTTPException(404, f"playbook {req.playbook!r} not found")
-        report = run_pipeline(document, playbook, build_llm(req.use_fake), settings=settings)
+        report = run_pipeline(document, playbook, build_llm(req.offline), settings=settings)
         review_id = repo.save(report)
         return {"review_id": review_id, "report": report.model_dump()}
 

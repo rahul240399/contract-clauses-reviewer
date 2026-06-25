@@ -17,10 +17,10 @@ def test_segment_skips_blank_segments():
     assert [s.text for s in doc.spans] == ["A.", "B."]
 
 
-def test_cli_review_runs_end_to_end_with_fake(tmp_path, capsys):
+def test_cli_review_runs_end_to_end_offline(tmp_path, capsys):
     contract = tmp_path / "nda.txt"
     contract.write_text("The Receiving Party shall not reverse engineer the product.")
-    rc = main(["review", "--file", str(contract), "--fake"])
+    rc = main(["review", "--file", str(contract), "--offline"])
     assert rc == 0
     out = capsys.readouterr().out
     assert "Deviation score:" in out
