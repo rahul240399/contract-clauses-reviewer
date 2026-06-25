@@ -6,6 +6,7 @@ data/
 # Secrets / local env
 .env
 .env.*
+!.env.example
 
 # Local SQLite review store
 *.db
