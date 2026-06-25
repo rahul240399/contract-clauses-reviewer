@@ -61,13 +61,18 @@ contract-review eval   --split dev --n 10                # score against gold
 
 ```bash
 uvicorn contract_review.api.app:app --reload
+
+# review inline text
 curl -s localhost:8000/reviews -H 'content-type: application/json' \
   -d '{"text": "...contract text...", "offline": true}'
+
+# upload a contract file (.txt or .pdf)
+curl -s localhost:8000/reviews/upload -F file=@my_nda.pdf -F offline=true
 ```
 
-Endpoints: `POST /reviews`, `GET /reviews`, `GET /reviews/{id}`,
-`POST /reviews/{id}/signoff`, `GET /playbooks/{name}`, `GET /health`.
-A `Dockerfile` is included for containerized deployment.
+Endpoints: `POST /reviews`, `POST /reviews/upload`, `GET /reviews`,
+`GET /reviews/{id}`, `POST /reviews/{id}/signoff`, `GET /playbooks/{name}`,
+`GET /health`. A `Dockerfile` is included for containerized deployment.
 
 ## Configuration
 

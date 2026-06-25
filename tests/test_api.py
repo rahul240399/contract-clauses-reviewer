@@ -38,6 +38,38 @@ def test_missing_input_is_422(tmp_path):
     assert _client(tmp_path).post("/reviews", json={"offline": True}).status_code == 422
 
 
+def test_upload_text_file(tmp_path):
+    client = _client(tmp_path)
+    resp = client.post(
+        "/reviews/upload",
+        files={"file": ("nda.txt", b"The Receiving Party shall not reverse engineer.", "text/plain")},
+        data={"offline": "true"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["report"]["findings"]) == 17
+    assert body["report"]["document_id"] == "nda.txt"
+    assert body["review_id"] in client.get("/reviews").json()["review_ids"]
+
+
+def test_upload_pdf_file(tmp_path):
+    import pytest
+
+    pytest.importorskip("pypdf", reason="PDF support not installed")
+    from tests.test_ingest import _make_pdf
+
+    client = _client(tmp_path)
+    pdf = _make_pdf(["The Receiving Party shall not reverse engineer the product.",
+                     "Confidentiality obligations survive termination."])
+    resp = client.post(
+        "/reviews/upload",
+        files={"file": ("nda.pdf", pdf, "application/pdf")},
+        data={"offline": "true"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["report"]["document_id"] == "nda.pdf"
+
+
 def test_unknown_review_is_404(tmp_path):
     assert _client(tmp_path).get("/reviews/nope").status_code == 404
 
