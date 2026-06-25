@@ -83,7 +83,8 @@ def cmd_eval(args) -> int:
 
     pairs = []
     for document in documents:
-        report = run_pipeline(document, playbook, llm, settings=settings)
+        # eval scores verdicts/evidence only; skip the extra redline calls.
+        report = run_pipeline(document, playbook, llm, settings=settings, with_redlines=False)
         gold_doc = gold.get(document.id, {})
         for finding in report.findings:
             if finding.rule_id in gold_doc:

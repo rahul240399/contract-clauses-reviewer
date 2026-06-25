@@ -27,6 +27,7 @@ from .models import (
 from .ports import LLM
 from .stages.assess import assess
 from .stages.match import match
+from .stages.redline import draft_redlines
 from .stages.report import build_report
 from .stages.verify import verify
 
@@ -37,6 +38,7 @@ def review(
     llm: LLM,
     *,
     settings: Settings | None = None,
+    with_redlines: bool = True,
 ) -> Report:
     settings = settings or load_settings()
     rules = playbook.rules
@@ -49,7 +51,13 @@ def review(
             verified = list(
                 pool.map(lambda r: _assess_with_retries(r, document, llm, settings), rules)
             )
-    return build_report(playbook, verified, document_id=document.id)
+    report = build_report(playbook, verified, document_id=document.id)
+    if with_redlines:
+        # Enrich deviations with model-drafted redlines; skippable so eval stays fast.
+        report = draft_redlines(
+            report, playbook, document, llm, concurrency=settings.assess_concurrency
+        )
+    return report
 
 
 def _assess_with_retries(
