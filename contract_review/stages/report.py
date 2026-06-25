@@ -1,9 +1,10 @@
 """Stage 5 - Report: compare verdicts to playbook stance; draft redlines + score.
 
 Deterministic. For each rule it compares the actual verdict to the rule's
-expected disposition, marks deviations, drafts a suggested redline for each
-deviation, and computes the deviation score (fraction of rules that deviate).
-Redlines are templated here; an LLM can draft richer wording later.
+expected disposition, marks deviations, attaches a templated suggested redline
+for each deviation, and computes the deviation score (fraction of rules that
+deviate). The templated redline is a fallback; the redline stage replaces it
+with model-drafted wording when an LLM is available.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 from ..models import Finding, Playbook, Report, VerifiedAssessment, Verdict
 
 
-def _redline(rule_name: str, expected: Verdict, actual: Verdict, span_ids: list[str]) -> str:
+def _fallback_redline(rule_name: str, expected: Verdict, actual: Verdict, span_ids: list[str]) -> str:
     where = f" (see clause(s) {', '.join(span_ids)})" if span_ids else ""
     return (
         f"'{rule_name}': contract is {actual.value} but the playbook expects "
@@ -49,7 +50,7 @@ def build_report(
                 evidence_span_ids=evidence,
                 rationale=rationale,
                 suggested_redline=(
-                    _redline(rule.name, rule.expected_disposition, actual, evidence)
+                    _fallback_redline(rule.name, rule.expected_disposition, actual, evidence)
                     if is_deviation
                     else None
                 ),
